@@ -1,8 +1,25 @@
 #!/bin/bash
 
-GH="/data/data/com.termux/files/usr/bin/gh"
-GIT="/data/data/com.termux/files/usr/bin/git"
-WORKDIR="/data/data/com.termux/files/home/push_to_git"
+# ============================================================
+# DÉTECTION DE L'ENVIRONNEMENT
+# ============================================================
+
+if [ -d "/data/data/com.termux" ]; then
+    ENV="termux"
+    GH="/data/data/com.termux/files/usr/bin/gh"
+    GIT="/data/data/com.termux/files/usr/bin/git"
+    WORKDIR="$HOME/push_to_git"
+    DOWNLOADS="$HOME/downloads"
+    GH_CONFIG="$HOME/.config/gh/hosts.yml"
+else
+    ENV="ubuntu"
+    GH="$(which gh)"
+    GIT="$(which git)"
+    WORKDIR="$HOME/push_to_git"
+    DOWNLOADS="$HOME/Downloads"
+    GH_CONFIG="$HOME/.config/gh/hosts.yml"
+fi
+
 REPO_ACTIF=""
 
 sigint_signal() {
@@ -11,15 +28,24 @@ sigint_signal() {
 
 trap sigint_signal SIGINT
 
+mkdir -p "$WORKDIR"
 cd "$WORKDIR"
+
+# ============================================================
+# FONCTIONS
+# ============================================================
 
 connect() {
     $GH auth login
-    chmod 400 /data/data/com.termux/files/home/.config/gh/hosts.yml
+    if [ -f "$GH_CONFIG" ]; then
+        chmod 400 "$GH_CONFIG"
+    fi
 }
 
 disconnect() {
-    chmod 600 /data/data/com.termux/files/home/.config/gh/hosts.yml
+    if [ -f "$GH_CONFIG" ]; then
+        chmod 600 "$GH_CONFIG"
+    fi
     $GH auth logout
 }
 
@@ -47,7 +73,6 @@ choisir_repo() {
         REPO_ACTIF="${REPOS[$((num-1))]}"
         REPO_NOM=$(basename "$REPO_ACTIF")
 
-        # Cloner si pas déjà présent
         if [ ! -d "$WORKDIR/$REPO_NOM" ]; then
             echo -e "\033[33mClonage de $REPO_ACTIF...\033[0m"
             $GH repo clone "$REPO_ACTIF" "$WORKDIR/$REPO_NOM"
@@ -89,15 +114,17 @@ update_file() {
     verifier_repo || return
     REPO_NOM=$(basename "$REPO_ACTIF")
 
-    ls ~/downloads/
-    read -p "Nom du fichier (dans ~/downloads/) : " FILE
+    echo -e "\033[33mFichiers disponibles dans $DOWNLOADS/ :\033[0m"
+    ls "$DOWNLOADS/" 2>/dev/null || echo "  (dossier vide ou introuvable)"
+    echo ""
+    read -p "Nom du fichier (dans $DOWNLOADS/) : " FILE
 
     if [ -z "$FILE" ]; then
         echo -e "\033[31m❌ Nom de fichier vide.\033[0m"
         return
     fi
 
-    SRC="$HOME/downloads/$FILE"
+    SRC="$DOWNLOADS/$FILE"
     DEST="$WORKDIR/$REPO_NOM/$FILE"
 
     if [ ! -f "$SRC" ]; then
@@ -117,13 +144,15 @@ show_menu() {
     echo -ne "\033[33m"
     cat << EOF
 
+  Environnement : $ENV
+
 1) connect
 2) disconnect
 3) connection status
 4) choisir un repo${REPO_ACTIF:+ (actif : $REPO_ACTIF)}
 5) pull (mettre à jour)
 6) push (envoyer les changements)
-7) mettre a jour un fichier depuis ~/downloads/
+7) mettre a jour un fichier depuis $DOWNLOADS/
 menu) réafficher les options
 0) quit
 

@@ -1,9 +1,19 @@
 #!/bin/bash
 
-# Analyseur de logs de session - site_check.sh
-# Fait partie du projet de diagnostic reseau
+# Analyseur de logs de session
+# Compatible Termux et Ubuntu WSL
 
-LOG_DIR="/data/data/com.termux/files/home/tool_projects/site-diagnostic"
+# ============================================================
+# DÉTECTION DE L'ENVIRONNEMENT
+# ============================================================
+
+if [ -d "/data/data/com.termux" ]; then
+    ENV="termux"
+    LOG_DIR="$HOME/tool_projects/site-diagnostic"
+else
+    ENV="ubuntu"
+    LOG_DIR="$HOME/site-diagnostic"
+fi
 
 sigint_signal() {
     echo -e "\nProcess ended."; exit 1
@@ -15,6 +25,8 @@ trap sigint_signal SIGINT
 choose_log() {
     echo ""
     echo "--- Fichiers de session disponibles ---"
+    echo "  Dossier : $LOG_DIR"
+    echo ""
 
     mapfile -t LOGS < <(ls -t "$LOG_DIR"/session_*.log 2>/dev/null)
 
@@ -246,6 +258,8 @@ analyze_all() {
 show_menu() {
     echo
     echo -ne "\033[33m"
+    echo "  Environnement : $ENV"
+    echo ""
     echo "1) Traceroute (prefixes, frontieres reseau)"
     echo "2) Latence ping (moyenne, jitter)"
     echo "3) Codes HTTP (statuts, URLs)"
