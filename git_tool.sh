@@ -1,8 +1,22 @@
 #!/bin/bash
 
-GH="/data/data/com.termux/files/usr/bin/gh"
-GIT="/data/data/com.termux/files/usr/bin/git"
-WORKDIR="/data/data/com.termux/files/home/push_to_git"
+# --- Detection environnement ---
+if [ -d "/data/data/com.termux" ]; then
+    ENV="termux"
+    GH="/data/data/com.termux/files/usr/bin/gh"
+    GIT="/data/data/com.termux/files/usr/bin/git"
+    WORKDIR="/data/data/com.termux/files/home/push_to_git"
+    TOOL_BIN="$PREFIX/bin"
+    HOSTS_YML="/data/data/com.termux/files/home/.config/gh/hosts.yml"
+else
+    ENV="wsl"
+    GH=$(which gh)
+    GIT=$(which git)
+    WORKDIR="/home/linux_admin/Github/top-repo"
+    TOOL_BIN="/usr/local/bin"
+    HOSTS_YML="$HOME/.config/gh/hosts.yml"
+fi
+
 REPO_ACTIF=""
 
 sigint_signal() {
@@ -12,6 +26,8 @@ sigint_signal() {
 trap sigint_signal SIGINT
 
 cd "$WORKDIR"
+
+echo -e "\033[33m[ENV]\033[0m Environnement detecte : $ENV"
 
 # --- Verification connexion internet ---
 check_network() {
@@ -25,11 +41,11 @@ check_network() {
 connect() {
     check_network || return
     $GH auth login
-    chmod 400 /data/data/com.termux/files/home/.config/gh/hosts.yml
+    chmod 400 "$HOSTS_YML"
 }
 
 disconnect() {
-    chmod 600 /data/data/com.termux/files/home/.config/gh/hosts.yml
+    chmod 600 "$HOSTS_YML"
     $GH auth logout
 }
 
@@ -344,11 +360,11 @@ update_git_tool() {
         return
     fi
 
-    cp "$SRC" "$PREFIX/bin/git_tool.sh"
-    chmod +x "$PREFIX/bin/git_tool.sh"
+    cp "$SRC" "$TOOL_BIN/git_tool.sh"
+    chmod +x "$TOOL_BIN/git_tool.sh"
 
     if [ $? -eq 0 ]; then
-        echo -e "\033[32m[OK]\033[0m git_tool.sh mis a jour dans $PREFIX/bin/"
+        echo -e "\033[32m[OK]\033[0m git_tool.sh mis a jour dans $TOOL_BIN/"
         echo -e "\033[33m[INFO]\033[0m Relance le script pour utiliser la nouvelle version."
     else
         echo -e "\033[31m❌ Echec de la mise a jour.\033[0m"
