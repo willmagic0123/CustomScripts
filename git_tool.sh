@@ -277,17 +277,23 @@ update_file() {
     REPO_NOM=$(basename "$REPO_ACTIF")
     REPO_PATH="$WORKDIR/$REPO_NOM"
 
-    echo -e "\033[33mFichiers disponibles dans ~/downloads/ :\033[0m"
-    ls "$HOME/downloads/"
+    if [ "$ENV" = "wsl" ]; then
+        DL_DIR="/mnt/c/Users/Dev1d/OneDrive/Bureau/Downloads"
+    else
+        DL_DIR="$HOME/downloads"
+    fi
+
+    echo -e "\033[33mFichiers disponibles dans $DL_DIR :\033[0m"
+    ls "$DL_DIR/"
     echo ""
-    read -p "Nom du fichier (dans ~/downloads/) : " FILE
+    read -p "Nom du fichier : " FILE
 
     if [ -z "$FILE" ]; then
         echo -e "\033[31m❌ Nom de fichier vide.\033[0m"
         return
     fi
 
-    SRC="$HOME/downloads/$FILE"
+    SRC="$DL_DIR/$FILE"
 
     if [ ! -f "$SRC" ]; then
         echo -e "\033[31m❌ Fichier introuvable : $SRC\033[0m"
@@ -327,15 +333,22 @@ update_file() {
 
 clean_downloads() {
     echo ""
-    FILES=$(ls ~/downloads/ 2>/dev/null)
+
+    if [ "$ENV" = "wsl" ]; then
+        DL_DIR="/mnt/c/Users/Dev1d/OneDrive/Bureau/Downloads"
+    else
+        DL_DIR="$HOME/downloads"
+    fi
+
+    FILES=$(ls "$DL_DIR/" 2>/dev/null)
 
     if [ -z "$FILES" ]; then
-        echo -e "\033[33m[INFO]\033[0m Le dossier downloads est deja vide."
+        echo -e "\033[33m[INFO]\033[0m Le dossier $DL_DIR est deja vide."
         echo ""
         return
     fi
 
-    echo "Fichiers trouves dans ~/downloads :"
+    echo "Fichiers trouves dans $DL_DIR :"
     echo "$FILES" | while read -r f; do
         echo "    $f"
     done
@@ -344,7 +357,7 @@ clean_downloads() {
     read -p "Confirmer la suppression de tous ces fichiers ? (o/n) : " CONFIRM
 
     if [ "$CONFIRM" = "o" ]; then
-        rm -f ~/downloads/*
+        rm -f "$DL_DIR"/*
         echo -e "\033[32m[OK]\033[0m Fichiers supprimes."
     else
         echo -e "\033[33m[INFO]\033[0m Suppression annulee."
@@ -354,28 +367,28 @@ clean_downloads() {
 
 update_git_tool() {
     echo ""
-
-    if [ "$ENV" = "termux" ]; then
+    if [ "$ENV" = "wsl" ]; then
+        if command -v update_git_wsl.sh &>/dev/null; then
+            update_git_wsl.sh
+        else
+            echo -e "\033[31m❌ update_git_wsl.sh introuvable dans le PATH.\033[0m"
+        fi
+    else
         SRC="$HOME/downloads/git_tool.sh"
-    else
-        SRC="/mnt/c/Users/Dev1d/OneDrive/Bureau/Downloads/git_tool.sh"
-    fi
-
-    if [ ! -f "$SRC" ]; then
-        echo -e "\033[31m❌ git_tool.sh introuvable : $SRC\033[0m"
-        echo -e "\033[33m[INFO]\033[0m Place la nouvelle version au bon endroit et reessaie."
-        echo ""
-        return
-    fi
-
-    cp "$SRC" "$TOOL_BIN/git_tool.sh"
-    chmod +x "$TOOL_BIN/git_tool.sh"
-
-    if [ $? -eq 0 ]; then
-        echo -e "\033[32m[OK]\033[0m git_tool.sh mis a jour dans $TOOL_BIN/"
-        echo -e "\033[33m[INFO]\033[0m Relance le script pour utiliser la nouvelle version."
-    else
-        echo -e "\033[31m❌ Echec de la mise a jour.\033[0m"
+        if [ ! -f "$SRC" ]; then
+            echo -e "\033[31m❌ git_tool.sh introuvable : $SRC\033[0m"
+            echo -e "\033[33m[INFO]\033[0m Place la nouvelle version dans ~/downloads/ et reessaie."
+            echo ""
+            return
+        fi
+        cp "$SRC" "$TOOL_BIN/git_tool.sh"
+        chmod +x "$TOOL_BIN/git_tool.sh"
+        if [ $? -eq 0 ]; then
+            echo -e "\033[32m[OK]\033[0m git_tool.sh mis a jour dans $TOOL_BIN/"
+            echo -e "\033[33m[INFO]\033[0m Relance le script pour utiliser la nouvelle version."
+        else
+            echo -e "\033[31m❌ Echec de la mise a jour.\033[0m"
+        fi
     fi
     echo ""
 }
@@ -404,8 +417,8 @@ show_menu() {
 4)  choisir un repo${REPO_ACTIF:+ (actif : $REPO_ACTIF)}
 5)  pull (mettre à jour)
 6)  push (envoyer les changements)
-7)  mettre a jour un fichier depuis ~/downloads/
-8)  nettoyer ~/downloads
+7)  mettre a jour un fichier depuis downloads/
+8)  nettoyer downloads/
 9)  status du repo
 10) log des commits
 11) diff (modifications locales)
