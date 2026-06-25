@@ -1,0 +1,9 @@
+machine: wsl2 ubuntu on windows
+local repo location: (CUstomScripts) /home/linux_admin/Github/top-repo/CustomScripts/
+local repo location: (Cleanview) /home/linux_admin/Github/top-repo/CLeanview/
+git_tool.sh file location: /usr/local/bin/
+
+machine: termux android
+local repo location: (CustomScripts)/data/data/com.termux/files/home/push_to_git/CustomScripts/
+local repo location: (Cleanview): /data/data/com.termux/files/home/push_to_git/Cleanview/
+git_tool.sh file location: $PREFIX/bin/

@@ -351,11 +351,16 @@ clean_downloads() {
 
 update_git_tool() {
     echo ""
-    SRC="$HOME/downloads/git_tool.sh"
+
+    if [ "$ENV" = "termux" ]; then
+        SRC="$HOME/downloads/git_tool.sh"
+    else
+        SRC="/mnt/c/Users/Dev1d/OneDrive/Bureau/Downloads/git_tool.sh"
+    fi
 
     if [ ! -f "$SRC" ]; then
-        echo -e "\033[31m❌ git_tool.sh introuvable dans ~/downloads/\033[0m"
-        echo -e "\033[33m[INFO]\033[0m Telecharge la nouvelle version et place-la dans ~/downloads/"
+        echo -e "\033[31m❌ git_tool.sh introuvable dans : $SRC\033[0m"
+        echo -e "\033[33m[INFO]\033[0m Place la nouvelle version au bon endroit et reessaie."
         echo ""
         return
     fi
