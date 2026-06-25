@@ -29,6 +29,15 @@ cd "$WORKDIR"
 
 echo -e "\033[33m[ENV]\033[0m Environnement detecte : $ENV"
 
+# --- Gestion hosts.yml ---
+unlock_hosts() {
+    chmod 600 "$HOSTS_YML" 2>/dev/null
+}
+
+lock_hosts() {
+    chmod 400 "$HOSTS_YML" 2>/dev/null
+}
+
 # --- Verification connexion internet ---
 check_network() {
     if ! ping -c 1 -W 2 github.com &>/dev/null; then
@@ -40,27 +49,33 @@ check_network() {
 
 connect() {
     check_network || return
+    unlock_hosts
     $GH auth login
     if [ "$ENV" = "wsl" ]; then
         $GH auth setup-git
     fi
-    chmod 400 "$HOSTS_YML"
+    lock_hosts
 }
 
 disconnect() {
-    chmod 600 "$HOSTS_YML"
+    unlock_hosts
     $GH auth logout
+    lock_hosts
 }
 
 conn_status() {
     check_network || return
+    unlock_hosts
     $GH auth status
+    lock_hosts
 }
 
 choisir_repo() {
     check_network || return
     echo -e "\033[33m\nChargement de tes repos...\033[0m"
+    unlock_hosts
     mapfile -t REPOS < <($GH repo list --limit 20 --json nameWithOwner -q '.[].nameWithOwner')
+    lock_hosts
 
     if [ ${#REPOS[@]} -eq 0 ]; then
         echo "Aucun repo trouvé. Es-tu connecté ? (option 1)"
@@ -80,7 +95,9 @@ choisir_repo() {
 
         if [ ! -d "$WORKDIR/$REPO_NOM" ]; then
             echo -e "\033[33mClonage de $REPO_ACTIF...\033[0m"
+            unlock_hosts
             $GH repo clone "$REPO_ACTIF" "$WORKDIR/$REPO_NOM"
+            lock_hosts
         fi
 
         echo -e "\033[32m✅ Repo actif : $REPO_ACTIF\033[0m"
@@ -101,7 +118,9 @@ pull_repo() {
     verifier_repo || return
     check_network || return
     REPO_NOM=$(basename "$REPO_ACTIF")
+    unlock_hosts
     cd "$WORKDIR/$REPO_NOM" && $GIT pull
+    lock_hosts
     cd "$WORKDIR"
 }
 
@@ -124,8 +143,10 @@ push_repo() {
 
     $GIT add .
     read -p "Message du commit : " msg
+    unlock_hosts
     $GIT commit -m "$msg"
     $GIT push
+    lock_hosts
     cd "$WORKDIR"
 }
 
@@ -381,8 +402,10 @@ update_git_tool() {
             echo ""
             return
         fi
+        unlock_hosts
         cp "$SRC" "$TOOL_BIN/git_tool.sh"
         chmod +x "$TOOL_BIN/git_tool.sh"
+        lock_hosts
         if [ $? -eq 0 ]; then
             echo -e "\033[32m[OK]\033[0m git_tool.sh mis a jour dans $TOOL_BIN/"
             echo -e "\033[33m[INFO]\033[0m Relance le script pour utiliser la nouvelle version."
