@@ -41,6 +41,9 @@ check_network() {
 connect() {
     check_network || return
     $GH auth login
+    if [ "$ENV" = "wsl" ]; then
+        $GH auth setup-git
+    fi
     chmod 400 "$HOSTS_YML"
 }
 
@@ -359,7 +362,7 @@ update_git_tool() {
     fi
 
     if [ ! -f "$SRC" ]; then
-        echo -e "\033[31m❌ git_tool.sh introuvable dans : $SRC\033[0m"
+        echo -e "\033[31m❌ git_tool.sh introuvable : $SRC\033[0m"
         echo -e "\033[33m[INFO]\033[0m Place la nouvelle version au bon endroit et reessaie."
         echo ""
         return
@@ -377,18 +380,18 @@ update_git_tool() {
     echo ""
 }
 
-get_prompt() {
+show_prompt() {
     if [ -n "$REPO_ACTIF" ]; then
         REPO_NOM=$(basename "$REPO_ACTIF")
         REPO_PATH="$WORKDIR/$REPO_NOM"
         if [ -d "$REPO_PATH" ]; then
             BRANCH=$(cd "$REPO_PATH" && $GIT branch --show-current 2>/dev/null)
             MODIFS=$(cd "$REPO_PATH" && $GIT status --short 2>/dev/null | wc -l | xargs)
-            echo -n $'\033[34m[git_tool.sh | '"$BRANCH"' | '"$MODIFS"' modifs] >>\033[0m '
+            printf '\033[34m[git_tool.sh | %s | %s modifs] >>\033[0m ' "$BRANCH" "$MODIFS"
             return
         fi
     fi
-    echo -n $'\033[34m[git_tool.sh] >>\033[0m '
+    printf '\033[34m[git_tool.sh] >>\033[0m '
 }
 
 show_menu() {
@@ -421,7 +424,8 @@ EOF
 show_menu
 
 while true; do
-    read -p "$(get_prompt)" choix
+    show_prompt
+    read -r choix
     case $choix in
         1) connect ;;
         2) disconnect ;;
