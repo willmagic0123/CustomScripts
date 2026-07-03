@@ -5,7 +5,8 @@ import shutil
 from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, Grid
-from textual.widgets import Header, Footer, Button, RichLog, Label, Input
+from textual.widgets import Header, Footer, Button, RichLog, Label, Input, OptionList
+from textual.widgets.option_list import Option
 from textual.screen import ModalScreen
 
 # --- Environment Detection ---
@@ -30,23 +31,24 @@ else:
 # Create workdir if missing
 WORKDIR.mkdir(parents=True, exist_ok=True)
 
-# --- Dialog Modal for text inputs ---
-class InputModal(ModalScreen):
-    def __init__(self, prompt: str, placeholder: str = ""):
+
+# --- 1. Pure Text Input Modal (For Commits, Branch Names, etc.) ---
+class TextInputModal(ModalScreen):
+    def __init__(self, title: str, placeholder: str = ""):
         super().__init__()
-        self.prompt = prompt
+        self.title_text = title
         self.placeholder = placeholder
 
     def compose(self) -> ComposeResult:
-        yield Grid(
-            Label(self.prompt, id="modal-label"),
+        yield Vertical(
+            Label(self.title_text, id="modal-title"),
             Input(placeholder=self.placeholder, id="modal-input"),
             Horizontal(
                 Button("Submit", variant="primary", id="submit-btn"),
                 Button("Cancel", variant="error", id="cancel-btn"),
                 id="modal-buttons"
             ),
-            id="modal-dialog"
+            id="text-modal-dialog"
         )
 
     def on_mount(self) -> None:
@@ -62,23 +64,64 @@ class InputModal(ModalScreen):
         self.dismiss(event.value)
 
 
+# --- 2. Upgraded Selection List Modal (For Repos, Stash, Branches, etc.) ---
+class SelectionModal(ModalScreen):
+    def __init__(self, title: str, options: list):
+        super().__init__()
+        self.title_text = title
+        self.options_data = options
+
+    def compose(self) -> ComposeResult:
+        option_widgets = [Option(disp, id=val) for val, disp in self.options_data]
+        yield Vertical(
+            Label(self.title_text, id="modal-title"),
+            OptionList(*option_widgets, id="modal-option-list"),
+            Horizontal(
+                Button("Cancel", variant="error", id="cancel-btn"),
+                id="modal-buttons"
+            ),
+            id="select-modal-dialog"
+        )
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        if event.option and event.option.id is not None:
+            self.dismiss(event.option.id)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(None)
+
+
 # --- Main TUI App ---
 class GitToolApp(App):
     CSS = """
     Grid {
         grid-size: 2;
-        grid-columns: 1fr 2fr;
-        padding: 1;
+        grid-columns: 8 1fr; 
+        padding: 0;
     }
     #sidebar {
         overflow-y: scroll;
         border-right: solid $accent;
-        padding-right: 1;
+        padding-right: 0;
     }
     #sidebar Button {
-        margin-bottom: 1;
+        margin-bottom: 0;
         width: 100%;
+        height: 1; 
+        border: none;
+        min-width: 0;       
+        padding: 0;         
+        background: $surface;
+        color: $text;
     }
+    
+    /* Highlight clearly when navigated via arrow keys */
+    #sidebar Button:focus {
+        background: $accent;
+        color: $surface;
+        text-style: bold;
+    }
+    
     #console-container {
         padding-left: 1;
     }
@@ -92,26 +135,60 @@ class GitToolApp(App):
         color: $text;
         height: 1;
     }
-    #modal-dialog {
-        grid-size: 1;
+    
+    /* --- Popups Styling --- */
+    #text-modal-dialog, #select-modal-dialog {
         background: $surface;
-        padding: 2;
+        padding: 1 2;        
         border: thick $primary;
-        width: 50;
-        height: 15;
+        width: 90%;
+        height: auto;
         align: center middle;
     }
+    #select-modal-dialog {
+        max-height: 75%;
+    }
+    #modal-title {
+        width: 100%;
+        text-align: center;
+        text-style: bold;
+        color: $accent;
+        margin-bottom: 1;
+    }
+    #modal-option-list {
+        height: 8;
+        border: solid $secondary;
+        margin-bottom: 1;
+    }
+    #modal-input {
+        margin-bottom: 1;
+        height: 3;
+    }
     #modal-buttons {
-        margin-top: 1;
         align: center middle;
+        height: 3;
+        width: 100%;
     }
     #modal-buttons Button {
         margin: 0 1;
+        min-width: 12;
     }
     """
 
     TITLE = f"Git Tool TUI ({ENV.upper()})"
-    BINDINGS = [("q", "quit", "Quit")]
+    
+    BINDINGS = [
+        ("q", "quit", "Quit"),
+        ("1", "press_button('btn_connect')", "Connect"),
+        ("2", "press_button('btn_disconnect')", "Disconnect"),
+        ("3", "press_button('btn_conn_status')", "Conn Status"),
+        ("4", "press_button('btn_choose_repo')", "Choose Repo"),
+        ("5", "press_button('btn_pull')", "Pull"),
+        ("6", "press_button('btn_push')", "Push"),
+        ("7", "press_button('btn_import')", "Import File"),
+        ("8", "press_button('btn_clean_dl')", "Clean DL"),
+        ("9", "press_button('btn_status')", "Status"),
+    ]
 
     def __init__(self):
         super().__init__()
@@ -122,31 +199,23 @@ class GitToolApp(App):
         yield Label(f"Env: {ENV} | Active Repo: None", id="status-bar")
         yield Grid(
             Vertical(
-                Label("🔐 GitHub Auth"),
-                Button("Connect", id="btn_connect"),
-                Button("Disconnect", id="btn_disconnect"),
-                Button("Status Connection", id="btn_conn_status"),
-                
-                Label("📁 Repo Selection"),
-                Button("Choose Repo", id="btn_choose_repo"),
-                
-                Label("🔄 Git Operations"),
-                Button("Git Pull", id="btn_pull"),
-                Button("Git Push", id="btn_push"),
-                Button("Repo Status", id="btn_status"),
-                Button("Commit Log", id="btn_log"),
-                Button("Local Diff", id="btn_diff"),
-                
-                Label("🛠️ Advanced Git"),
-                Button("Stash Manager", id="btn_stash"),
-                Button("Restore Files", id="btn_restore"),
-                Button("Branch Manager", id="btn_branch"),
-                Button("Undo Last Commit (Reset)", id="btn_reset"),
-                
-                Label("📂 System & Updates"),
-                Button("Import from Downloads", id="btn_import"),
-                Button("Clean Downloads", id="btn_clean_dl"),
-                Button("Update Tool", id="btn_update_tool"),
+                Button("Menu", id="btn_menu_guide"),
+                Button("1", id="btn_connect"),
+                Button("2", id="btn_disconnect"),
+                Button("3", id="btn_conn_status"),
+                Button("4", id="btn_choose_repo"),
+                Button("5", id="btn_pull"),
+                Button("6", id="btn_push"),
+                Button("7", id="btn_import"),
+                Button("8", id="btn_clean_dl"),
+                Button("9", id="btn_status"),
+                Button("10", id="btn_log"),
+                Button("11", id="btn_diff"),
+                Button("12", id="btn_stash"),
+                Button("13", id="btn_restore"),
+                Button("14", id="btn_branch"),
+                Button("15", id="btn_reset"),
+                Button("16", id="btn_update_tool"),
                 id="sidebar"
             ),
             Vertical(
@@ -159,10 +228,35 @@ class GitToolApp(App):
     def on_mount(self) -> None:
         self.log_widget = self.query_one("#console", RichLog)
         self.log_widget.write(f"[yellow][ENV][/yellow] Working Directory initialized at: {WORKDIR}")
+        self.print_menu_guide()
+        # Direct keyboard focus to the menu sidebar right away
+        self.query_one("#btn_menu_guide", Button).focus()
 
     def update_status(self):
         status_bar = self.query_one("#status-bar", Label)
         status_bar.update(f"Env: {ENV} | Active Repo: {self.repo_actif or 'None'}")
+
+    def print_menu_guide(self):
+        guide_text = (
+            "\n[yellow]------------------- FUNCTION DIRECTORY MAP -------------------[/yellow]\n"
+            "  [bold]1)[/bold]  connect                              [bold]9)[/bold]  status du repo\n"
+            "  [bold]2)[/bold]  disconnect                           [bold]10)[/bold] log des commits\n"
+            "  [bold]3)[/bold]  connection status                    [bold]11)[/bold] diff (modifications locales)\n"
+            "  [bold]4)[/bold]  choisir un repo                      [bold]12)[/bold] stash (mettre de cote)\n"
+            "  [bold]5)[/bold]  pull (mettre à jour)                 [bold]13)[/bold] restore (annuler modifications)\n"
+            "  [bold]6)[/bold]  push (envoyer les changements)       [bold]14)[/bold] branch (gestion des branches)\n"
+            "  [bold]7)[/bold]  mettre a jour depuis downloads/      [bold]15)[/bold] reset (annuler le dernier commit)\n"
+            "  [bold]8)[/bold]  nettoyer downloads/                  [bold]16)[/bold] mettre a jour git_tool.sh\n"
+            "[yellow]--------------------------------------------------------------[/yellow]\n"
+        )
+        self.log_widget.write(guide_text)
+
+    def action_press_button(self, button_id: str) -> None:
+        try:
+            btn = self.query_one(f"#{button_id}", Button)
+            btn.press()
+        except Exception:
+            pass
 
     # --- Utility execution wrappers ---
     def unlock_hosts(self):
@@ -198,13 +292,18 @@ class GitToolApp(App):
 
     def check_repo_active(self) -> bool:
         if not self.repo_actif:
-            self.log_widget.write("[red]❌ No repository selected. Click 'Choose Repo' first.[/red]")
+            self.log_widget.write("[red]❌ No repository selected. Click button '4' first.[/red]")
             return False
         return True
 
     # --- Event Handler Router ---
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
+        
+        if btn_id == "btn_menu_guide":
+            self.print_menu_guide()
+            return
+
         self.log_widget.write(f"\n[bold cyan]> Executing action...[/bold cyan]")
 
         if btn_id == "btn_connect":
@@ -237,24 +336,25 @@ class GitToolApp(App):
                     self.log_widget.write("[yellow]No repos found. Are you authenticated?[/yellow]")
                     return
 
-                def select_repo_callback(choice):
-                    if choice and choice.isdigit():
-                        idx = int(choice) - 1
-                        if 0 <= idx < len(repos):
-                            self.repo_actif = repos[idx]
-                            self.update_status()
-                            repo_nom = self.repo_actif.split("/")[-1]
-                            repo_path = WORKDIR / repo_nom
-                            if not repo_path.exists():
-                                self.log_widget.write(f"[yellow]Cloning {self.repo_actif}...[/yellow]")
-                                res_clone = self.run_cmd([GH, "repo", "clone", self.repo_actif, str(repo_path)])
-                                self.log_widget.write(res_clone.stdout + res_clone.stderr)
-                            self.log_widget.write(f"[green]✅ Active Repo set to: {self.repo_actif}[/green]")
-                        else:
-                            self.log_widget.write("[red]Invalid Choice.[/red]")
+                def select_repo_callback(chosen_repo):
+                    if chosen_repo:
+                        self.repo_actif = chosen_repo
+                        self.update_status()
+                        repo_nom = self.repo_actif.split("/")[-1]
+                        repo_path = WORKDIR / repo_nom
+                        if not repo_path.exists():
+                            self.log_widget.write(f"[yellow]Cloning {self.repo_actif}...[/yellow]")
+                            res_clone = self.run_cmd([GH, "repo", "clone", self.repo_actif, str(repo_path)])
+                            self.log_widget.write(res_clone.stdout + res_clone.stderr)
+                        self.log_widget.write(f"[green]✅ Active Repo set to: {self.repo_actif}[/green]")
 
-                prompt_str = "\n".join([f"{i+1}) {r}" for i, r in enumerate(repos)]) + "\n\nEnter Repo Number:"
-                self.push_screen(InputModal(prompt_str), select_repo_callback)
+                options = []
+                for r in repos:
+                    clean_name = r.split('/')[-1] if '/' in r else r
+                    display_name = clean_name if len(clean_name) <= 24 else f"{clean_name[:21]}..."
+                    options.append((r, display_name))
+
+                self.push_screen(SelectionModal("CHOOSE A REPOSITORY", options), select_repo_callback)
 
         elif btn_id in ["btn_pull", "btn_push", "btn_status", "btn_log", "btn_diff", "btn_stash", "btn_restore", "btn_branch", "btn_reset", "btn_import"]:
             if not self.check_repo_active():
@@ -279,7 +379,7 @@ class GitToolApp(App):
                             res_p = self.run_cmd([GIT, "push"], cwd=repo_path)
                             self.log_widget.write(res_p.stdout + res_p.stderr)
 
-                    self.push_screen(InputModal("Enter Commit Message:"), do_commit)
+                    self.push_screen(TextInputModal("ENTER COMMIT MESSAGE"), do_commit)
 
             elif btn_id == "btn_status":
                 res = self.run_cmd([GIT, "status"], cwd=repo_path)
@@ -294,7 +394,11 @@ class GitToolApp(App):
                 self.log_widget.write(res.stdout if res.stdout else "[yellow]No local changes diffed.[/yellow]")
 
             elif btn_id == "btn_stash":
-                prompt = "1) Stash changes\n2) Pop changes\n3) List Stashes\n\nEnter choice (1-3):"
+                options = [
+                    ("1", "1) Stash changes"),
+                    ("2", "2) Pop changes"),
+                    ("3", "3) List Stashes")
+                ]
                 def stash_cb(choice):
                     if choice == "1":
                         self.log_widget.write(self.run_cmd([GIT, "stash"], cwd=repo_path).stdout)
@@ -302,11 +406,14 @@ class GitToolApp(App):
                         self.log_widget.write(self.run_cmd([GIT, "stash", "pop"], cwd=repo_path).stdout)
                     elif choice == "3":
                         self.log_widget.write(self.run_cmd([GIT, "stash", "list"], cwd=repo_path).stdout)
-                self.push_screen(InputModal(prompt), stash_cb)
+                self.push_screen(SelectionModal("STASH OPERATIONS", options), stash_cb)
 
             elif btn_id == "btn_restore":
                 stat = self.run_cmd([GIT, "status", "--short"], cwd=repo_path).stdout
-                prompt = f"Modified Files:\n{stat}\nType file name to restore or 'all':"
+                modified_lines = [line.strip().split()[-1] for line in stat.strip().split('\n') if line.strip()]
+                
+                options = [("all", "✨ Restore All Files")] + [(f, f"📄 {f}") for f in modified_lines]
+                
                 def restore_cb(target):
                     if target == "all":
                         self.run_cmd([GIT, "restore", "."], cwd=repo_path)
@@ -314,27 +421,32 @@ class GitToolApp(App):
                     elif target:
                         res = self.run_cmd([GIT, "restore", target], cwd=repo_path)
                         self.log_widget.write(f"[green]Restored {target}[/green]\n{res.stderr}")
-                self.push_screen(InputModal(prompt), restore_cb)
+                self.push_screen(SelectionModal("CHOOSE FILE TO RESTORE", options), restore_cb)
 
             elif btn_id == "btn_branch":
-                prompt = "1) View branches\n2) Create branch\n3) Checkout branch\nEnter choice:"
+                options = [
+                    ("1", "1) View branches"),
+                    ("2", "2) Create branch"),
+                    ("3", "3) Checkout branch")
+                ]
                 def branch_cb(choice):
                     if choice == "1":
                         self.log_widget.write(self.run_cmd([GIT, "branch", "-a"], cwd=repo_path).stdout)
                     elif choice == "2":
-                        self.push_screen(InputModal("New branch name:"), lambda name: self.log_widget.write(self.run_cmd([GIT, "checkout", "-b", name], cwd=repo_path).stdout + self.run_cmd([GIT, "checkout", "-b", name], cwd=repo_path).stderr) if name else None)
+                        self.push_screen(TextInputModal("NEW BRANCH NAME"), lambda name: self.log_widget.write(self.run_cmd([GIT, "checkout", "-b", name], cwd=repo_path).stdout if name else ""))
                     elif choice == "3":
                         avail = self.run_cmd([GIT, "branch"], cwd=repo_path).stdout
-                        self.push_screen(InputModal(f"{avail}\nCheckout branch name:"), lambda name: self.log_widget.write(self.run_cmd([GIT, "checkout", name], cwd=repo_path).stdout + self.run_cmd([GIT, "checkout", name], cwd=repo_path).stderr) if name else None)
-                self.push_screen(InputModal(prompt), branch_cb)
+                        br_list = [b.replace("*", "").strip() for b in avail.strip().split("\n") if b.strip()]
+                        br_options = [(b, f"🌿 {b}") for b in br_list]
+                        self.push_screen(SelectionModal("SELECT BRANCH TO CHECKOUT", br_options), lambda name: self.log_widget.write(self.run_cmd([GIT, "checkout", name], cwd=repo_path).stdout if name else ""))
+                self.push_screen(SelectionModal("BRANCH MANAGEMENT", options), branch_cb)
 
             elif btn_id == "btn_reset":
-                last_log = self.run_cmd([GIT, "log", "--oneline", "-1"], cwd=repo_path).stdout
-                prompt = f"Last Commit:\n{last_log}\nUndo this commit? (y/n):"
+                options = [("y", "Yes, undo last commit"), ("n", "No, keep it")]
                 def reset_cb(ans):
-                    if ans.lower() == 'y':
+                    if ans == "y":
                         self.log_widget.write(self.run_cmd([GIT, "reset", "HEAD~1"], cwd=repo_path).stdout)
-                self.push_screen(InputModal(prompt), reset_cb)
+                self.push_screen(SelectionModal("UNDO LAST COMMIT?", options), reset_cb)
 
             elif btn_id == "btn_import":
                 if not DL_DIR.exists():
@@ -344,30 +456,31 @@ class GitToolApp(App):
                 if not files:
                     self.log_widget.write("[yellow]No files available in downloads.[/yellow]")
                     return
-                prompt = "\n".join([f"{f}" for f in files]) + "\n\nEnter exact filename to copy:"
+                
+                file_options = [(f, f"📁 {f}") for f in files]
                 def file_cb(filename):
-                    if filename in files:
+                    if filename:
                         src_file = DL_DIR / filename
                         subdirs = [p for p in repo_path.rglob('*') if p.is_dir() and ".git" not in p.parts][:15]
-                        dest_prompt = "1) Root (/) \n" + "\n".join([f"{i+2}) {p.relative_to(repo_path)}" for i, p in enumerate(subdirs)]) + "\n\nDestination choice number:"
+                        
+                        dest_options = [("root", "🏠 Root (/)")] + [(str(p), f"📂 {p.relative_to(repo_path)}") for p in subdirs]
                         def dest_cb(d_choice):
-                            dest = repo_path
-                            if d_choice.isdigit() and int(d_choice) >= 2:
-                                idx = int(d_choice) - 2
-                                if idx < len(subdirs): dest = subdirs[idx]
-                            shutil.copy(src_file, dest / filename)
-                            self.log_widget.write(f"[green]Copied {filename} to {dest.relative_to(repo_path)}[/green]")
-                        self.push_screen(InputModal(dest_prompt), dest_cb)
-                self.push_screen(InputModal(prompt), file_cb)
+                            if d_choice:
+                                dest = repo_path if d_choice == "root" else Path(d_choice)
+                                shutil.copy(src_file, dest / filename)
+                                self.log_widget.write(f"[green]Copied {filename} to {dest.relative_to(repo_path)}[/green]")
+                        self.push_screen(SelectionModal("CHOOSE TARGET DESTINATION", dest_options), dest_cb)
+                self.push_screen(SelectionModal("SELECT FILE TO IMPORT", file_options), file_cb)
 
         elif btn_id == "btn_clean_dl":
             if DL_DIR.exists() and os.listdir(DL_DIR):
+                options = [("y", "Yes, delete everything"), ("n", "No, keep files")]
                 def clean_cb(ans):
-                    if ans.lower() == 'y':
+                    if ans == 'y':
                         for f in os.listdir(DL_DIR):
                             os.remove(DL_DIR / f)
                         self.log_widget.write("[green]Cleared downloads directory.[/green]")
-                self.push_screen(InputModal(f"Delete everything in {DL_DIR}? (y/n)"), clean_cb)
+                self.push_screen(SelectionModal("DELETE EVERYTHING IN DOWNLOADS?", options), clean_cb)
             else:
                 self.log_widget.write("[yellow]Downloads directory is already empty.[/yellow]")
 
