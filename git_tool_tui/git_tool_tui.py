@@ -32,7 +32,7 @@ else:
 WORKDIR.mkdir(parents=True, exist_ok=True)
 
 
-# --- 1. Pure Text Input Modal (For Commits, Branch Names, etc.) ---
+# --- 1. Pure Text Input Modal ---
 class TextInputModal(ModalScreen):
     def __init__(self, title: str, placeholder: str = ""):
         super().__init__()
@@ -64,7 +64,7 @@ class TextInputModal(ModalScreen):
         self.dismiss(event.value)
 
 
-# --- 2. Upgraded Selection List Modal (For Repos, Stash, Branches, etc.) ---
+# --- 2. Selection List Modal ---
 class SelectionModal(ModalScreen):
     def __init__(self, title: str, options: list):
         super().__init__()
@@ -115,7 +115,6 @@ class GitToolApp(App):
         color: $text;
     }
     
-    /* Highlight clearly when navigated via arrow keys */
     #sidebar Button:focus {
         background: $accent;
         color: $surface;
@@ -177,8 +176,11 @@ class GitToolApp(App):
 
     TITLE = f"Git Tool TUI ({ENV.upper()})"
     
+    # Explicitly bind keyboard Arrow Up/Down globally to cycle focus manually
     BINDINGS = [
         ("q", "quit", "Quit"),
+        ("up", "move_focus(-1)", "Focus Up"),
+        ("down", "move_focus(1)", "Focus Down"),
         ("1", "press_button('btn_connect')", "Connect"),
         ("2", "press_button('btn_disconnect')", "Disconnect"),
         ("3", "press_button('btn_conn_status')", "Conn Status"),
@@ -193,6 +195,13 @@ class GitToolApp(App):
     def __init__(self):
         super().__init__()
         self.repo_actif = ""
+        # Keep an ordered list of sidebar buttons to calculate navigation index
+        self.sidebar_buttons = [
+            "btn_menu_guide", "btn_connect", "btn_disconnect", "btn_conn_status",
+            "btn_choose_repo", "btn_pull", "btn_push", "btn_import", "btn_clean_dl",
+            "btn_status", "btn_log", "btn_diff", "btn_stash", "btn_restore",
+            "btn_branch", "btn_reset", "btn_update_tool"
+        ]
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -229,8 +238,21 @@ class GitToolApp(App):
         self.log_widget = self.query_one("#console", RichLog)
         self.log_widget.write(f"[yellow][ENV][/yellow] Working Directory initialized at: {WORKDIR}")
         self.print_menu_guide()
-        # Direct keyboard focus to the menu sidebar right away
         self.query_one("#btn_menu_guide", Button).focus()
+
+    def action_move_focus(self, direction: int) -> None:
+        """Manually moves focus between sidebar buttons using Up/Down arrow keys."""
+        current_focused = self.focused
+        if not current_focused or current_focused.id not in self.sidebar_buttons:
+            # If nothing or console is focused, reset focus back to the menu button
+            self.query_one("#btn_menu_guide", Button).focus()
+            return
+            
+        current_idx = self.sidebar_buttons.index(current_focused.id)
+        next_idx = (current_idx + direction) % len(self.sidebar_buttons)
+        next_button_id = self.sidebar_buttons[next_idx]
+        
+        self.query_one(f"#{next_button_id}", Button).focus()
 
     def update_status(self):
         status_bar = self.query_one("#status-bar", Label)
