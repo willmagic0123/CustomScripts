@@ -1,9 +1,15 @@
-machine: wsl2 ubuntu on windows
-local repo location: (CUstomScripts) /home/linux_admin/Github/top-repo/CustomScripts/
-local repo location: (Cleanview) /home/linux_admin/Github/top-repo/CLeanview/
-git_tool.sh file location: /usr/local/bin/
+machine: wsl2 ubuntu windows
+-------------------------------
+-local repo location: (CUstomScripts) /home/linux_admin/Github/top-repo/CustomScripts/
+-local repo location: (Cleanview) /home/linux_admin/Github/top-repo/CLeanview/
+-git_tool.sh file location: /usr/local/bin/git_tool.sh
+-git_tool_tui file location: 
+-download directory location:
 
 machine: termux android
-local repo location: (CustomScripts)/data/data/com.termux/files/home/push_to_git/CustomScripts/
-local repo location: (Cleanview): /data/data/com.termux/files/home/push_to_git/Cleanview/
-git_tool.sh file location: $PREFIX/bin/
+-----------------------
+-local repo location: (CustomScripts)/data/data/com.termux/files/home/push_to_git/CustomScripts/
+-local repo location: (Cleanview): /data/data/com.termux/files/home/push_to_git/Cleanview/
+-git_tool.sh file location: $PREFIX/bin/git_tool.sh
+-git_tool_tui file location: $HOME/push_to_git/scripts/git_tool_tui/git_tool_tui.py
+-download directory location: $HOME/downloads/
