@@ -3,8 +3,8 @@ machine: wsl2 ubuntu windows
 -local repo location: (CUstomScripts) /home/linux_admin/Github/top-repo/CustomScripts/
 -local repo location: (Cleanview) /home/linux_admin/Github/top-repo/CLeanview/
 -git_tool.sh file location: /usr/local/bin/git_tool.sh
--git_tool_tui file location: 
--download directory location:
+-git_tool_tui file location: /home/linux_admin/tui-apps/git_tool_tui/git_tool_tui.py
+-download directory location: /mnt/c/Users/Dev1d/OneDrive/Bureau/Downloads/
 
 machine: termux android
 -----------------------
@@ -13,3 +13,4 @@ machine: termux android
 -git_tool.sh file location: $PREFIX/bin/git_tool.sh
 -git_tool_tui file location: $HOME/push_to_git/scripts/git_tool_tui/git_tool_tui.py
 -download directory location: $HOME/downloads/
+
